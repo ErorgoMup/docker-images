@@ -1,0 +1,87 @@
+name: Pull Docker Image and Publish to Release
+
+# 触发条件：手动触发 + 每天凌晨定时触发（可选）
+on:
+  workflow_dispatch:  # 手动触发（推荐）
+    inputs:
+      docker_image:
+        description: 'Docker 镜像地址（如 nginx:latest、ubuntu:22.04）'
+        required: true
+        default: 'nginx:latest'
+      release_tag:
+        description: 'Release 标签（如 v1.0.0）'
+        required: true
+        default: 'v1.0.0'
+  # schedule:
+  #   - cron: '0 0 * * *'  # 每天 UTC 0 点触发（可选，需固定镜像和标签）
+
+# 权限配置（必须）
+permissions:
+  contents: write  # 允许创建/修改 Release
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 检出仓库（Release 需关联仓库内容）
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. 设置 Docker 环境（Ubuntu 自带 Docker，可省略）
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3. 拉取 Docker 镜像
+      - name: Pull Docker image
+        env:
+          DOCKER_IMAGE: ${{ github.event.inputs.docker_image || 'nginx:latest' }}  # 手动触发用输入值，定时触发用默认值
+        run: |
+          echo "拉取镜像: $DOCKER_IMAGE"
+          docker pull $DOCKER_IMAGE
+          # 验证镜像是否拉取成功
+          docker images | grep $(echo $DOCKER_IMAGE | cut -d: -f1)
+
+      # 4. 导出镜像为 tar 包（压缩以减小体积）
+      - name: Save Docker image to tar.gz
+        env:
+          DOCKER_IMAGE: ${{ github.event.inputs.docker_image || 'nginx:latest' }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || 'v1.0.0' }}
+        run: |
+          # 处理镜像名称（替换特殊字符，避免文件名错误）
+          IMAGE_NAME=$(echo $DOCKER_IMAGE | sed 's/[:\/]/_/g')
+          TAR_FILE="${IMAGE_NAME}_${RELEASE_TAG}.tar.gz"
+          echo "导出镜像到: $TAR_FILE"
+          # 导出并压缩
+          docker save $DOCKER_IMAGE | gzip > $TAR_FILE
+          # 输出文件信息（便于调试）
+          ls -lh $TAR_FILE
+          # 将文件名存入环境变量，供后续步骤使用
+          echo "TAR_FILE=$TAR_FILE" >> $GITHUB_ENV
+
+      # 5. 创建 GitHub Release
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}  # GitHub 自动生成的令牌，无需手动配置
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || 'v1.0.0' }}
+          release_name: "Docker Image: ${{ github.event.inputs.docker_image || 'nginx:latest' }} (${{ github.event.inputs.release_tag || 'v1.0.0' }})"
+          body: |
+            自动拉取的 Docker 镜像包
+            - 镜像地址: ${{ github.event.inputs.docker_image || 'nginx:latest' }}
+            - 拉取时间: ${{ github.run_at }}
+            - 工作流 ID: ${{ github.run_id }}
+          draft: false  # 是否草稿（false 直接发布）
+          prerelease: false  # 是否预发布
+
+      # 6. 上传 tar 包到 Release
+      - name: Upload tar.gz to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./${{ env.TAR_FILE }}
+          asset_name: ${{ env.TAR_FILE }}
+          asset_content_type: application/gzip  # 文件类型
