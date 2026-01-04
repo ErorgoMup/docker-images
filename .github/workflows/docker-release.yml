@@ -34,7 +34,7 @@ jobs:
       # 3. 拉取 Docker 镜像
       - name: Pull Docker image
         env:
-          DOCKER_IMAGE: ${{ github.event.inputs.docker_image || 'nginx:latest' }}  # 手动触发用输入值，定时触发用默认值
+          DOCKER_IMAGE: ${{github.event.inputs.docker_image||'nginx'}}:${{ github.event.inputs.release_tag || 'latest' }}  # 手动触发用输入值，定时触发用默认值
         run: |
           echo "拉取镜像: $DOCKER_IMAGE"
           docker pull $DOCKER_IMAGE
