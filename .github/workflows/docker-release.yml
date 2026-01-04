@@ -65,7 +65,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}  # GitHub 自动生成的令牌，无需手动配置
         with:
-          tag_name: ${{ github.event.inputs.docker_image+github.event.inputs.release_tag || 'v1.0.0' }}
+          tag_name: ${{github.event.inputs.docker_image||'nginx'}}:${{ github.event.inputs.release_tag || 'latest' }}
           release_name: "Docker Image: ${{ github.event.inputs.docker_image || 'nginx:latest' }} (${{ github.event.inputs.release_tag || 'v1.0.0' }})"
           body: |
             自动拉取的 Docker 镜像包
