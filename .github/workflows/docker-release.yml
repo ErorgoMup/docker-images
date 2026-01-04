@@ -65,11 +65,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}  # GitHub 自动生成的令牌，无需手动配置
         with:
-          tag_name: ${{github.event.inputs.docker_image||'nginx'}}:${{ github.event.inputs.release_tag || 'latest' }}
-          release_name: "Docker Image: ${{ github.event.inputs.docker_image || 'nginx:latest' }} (${{ github.event.inputs.release_tag || 'v1.0.0' }})"
+          tag_name: "${{ env.TAR_FILE }}"
+          release_name: ${{ github.event.inputs.docker_image || 'nginx' }}
           body: |
             自动拉取的 Docker 镜像包
-            - 镜像地址: ${{ github.event.inputs.docker_image || 'nginx:latest' }}
+            - 镜像地址: ${{ github.event.inputs.docker_image || 'nginx' }}
             - 拉取时间: ${{ github.run_at }}
             - 工作流 ID: ${{ github.run_id }}
           draft: false  # 是否草稿（false 直接发布）
